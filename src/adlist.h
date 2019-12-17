@@ -48,7 +48,7 @@ typedef struct list {
     listNode *head;
     listNode *tail;
     void *(*dup)(void *ptr);
-    void (*free)(void *ptr);
+    void (*free)(void *ptr);    // 用来释放listNode中value指向的值
     int (*match)(void *ptr, void *key);
     unsigned long len;
 } list;

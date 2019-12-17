@@ -38,7 +38,7 @@
  * by the user before to call AlFreeList().
  *
  * On error, NULL is returned. Otherwise the pointer to the new list. */
-list *listCreate(void)
+list *listCreate(void)  // 创建双向链表的表头
 {
     struct list *list;
 
@@ -53,6 +53,7 @@ list *listCreate(void)
 }
 
 /* Remove all the elements from the list without destroying the list itself. */
+// 销毁双向链表中的所有节点
 void listEmpty(list *list)
 {
     unsigned long len;
@@ -62,21 +63,22 @@ void listEmpty(list *list)
     len = list->len;
     while(len--) {
         next = current->next;
-        if (list->free) list->free(current->value);
-        zfree(current);
+        if (list->free) list->free(current->value); //调用free函数指针释放当前节点value指向的空间
+        zfree(current); // 释放当前节点的空间
         current = next;
     }
-    list->head = list->tail = NULL;
+    list->head = list->tail = NULL; // 将链表的头、尾置NULL
     list->len = 0;
 }
 
 /* Free the whole list.
  *
  * This function can't fail. */
+// 销毁整个双向链表
 void listRelease(list *list)
 {
-    listEmpty(list);
-    zfree(list);
+    listEmpty(list);    // 销毁双向链表中的所有节点
+    zfree(list);    // 销毁双向链表自己
 }
 
 /* Add a new node to the list, to head, containing the specified 'value'
@@ -85,23 +87,24 @@ void listRelease(list *list)
  * On error, NULL is returned and no operation is performed (i.e. the
  * list remains unaltered).
  * On success the 'list' pointer you pass to the function is returned. */
+// 向双向链表的头部添加一个节点，添加的节点的值为value指向的空间
 list *listAddNodeHead(list *list, void *value)
 {
     listNode *node;
 
-    if ((node = zmalloc(sizeof(*node))) == NULL)
+    if ((node = zmalloc(sizeof(*node))) == NULL)    // 不能分配新节点的内存直接返回失败
         return NULL;
     node->value = value;
-    if (list->len == 0) {
+    if (list->len == 0) {   // 如果当前双向链表是空链表
         list->head = list->tail = node;
         node->prev = node->next = NULL;
-    } else {
+    } else {    // 如果当前链表不是空链表，在链表头部插入一个节点
         node->prev = NULL;
         node->next = list->head;
         list->head->prev = node;
-        list->head = node;
+        list->head = node;  // 链表头节点指向刚插入的节点
     }
-    list->len++;
+    list->len++;    // 成功插入，链表长度自增1
     return list;
 }
 
@@ -111,6 +114,7 @@ list *listAddNodeHead(list *list, void *value)
  * On error, NULL is returned and no operation is performed (i.e. the
  * list remains unaltered).
  * On success the 'list' pointer you pass to the function is returned. */
+// 向链表的尾部插入一个节点，节点的值为value指向的空间
 list *listAddNodeTail(list *list, void *value)
 {
     listNode *node;
@@ -118,43 +122,45 @@ list *listAddNodeTail(list *list, void *value)
     if ((node = zmalloc(sizeof(*node))) == NULL)
         return NULL;
     node->value = value;
-    if (list->len == 0) {
+    if (list->len == 0) {   // 链表是空链表的情况
         list->head = list->tail = node;
         node->prev = node->next = NULL;
-    } else {
+    } else {    // 链表不是空时，在尾部插入一个节点
         node->prev = list->tail;
         node->next = NULL;
         list->tail->next = node;
-        list->tail = node;
+        list->tail = node;  // 链表尾部指向刚插入的节点
     }
     list->len++;
     return list;
 }
 
+// 在链表list中old_node节点处插入一个新的节点，新节点的值为value指向的空间
+// after为0时是在old_node的前面插入，否则是在old_node的后面插入
 list *listInsertNode(list *list, listNode *old_node, void *value, int after) {
     listNode *node;
 
     if ((node = zmalloc(sizeof(*node))) == NULL)
         return NULL;
     node->value = value;
-    if (after) {
+    if (after) {    // after非0，在olde_node后面插入
         node->prev = old_node;
-        node->next = old_node->next;
+        node->next = old_node->next;    //  此处，old_node->next还没更新
         if (list->tail == old_node) {
             list->tail = node;
         }
-    } else {
+    } else {    // 在old_node前面插入
         node->next = old_node;
-        node->prev = old_node->prev;
+        node->prev = old_node->prev;    // 此处，old_node->prev还没更新
         if (list->head == old_node) {
             list->head = node;
         }
     }
     if (node->prev != NULL) {
-        node->prev->next = node;
+        node->prev->next = node;    // 更新old_node->next
     }
     if (node->next != NULL) {
-        node->next->prev = node;
+        node->next->prev = node;    // 更新old_node->prev
     }
     list->len++;
     return list;
