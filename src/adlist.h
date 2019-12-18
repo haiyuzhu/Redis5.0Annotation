@@ -47,9 +47,9 @@ typedef struct listIter {
 typedef struct list {
     listNode *head;
     listNode *tail;
-    void *(*dup)(void *ptr);
+    void *(*dup)(void *ptr);    // 用来深拷贝结点的函数
     void (*free)(void *ptr);    // 用来释放listNode中value指向的值
-    int (*match)(void *ptr, void *key);
+    int (*match)(void *ptr, void *key); // 判断当前结点是否跟key是匹配的
     unsigned long len;
 } list;
 
