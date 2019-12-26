@@ -39,8 +39,10 @@
 #include "sds.h"
 #include "sdsalloc.h"
 
-const char *SDS_NOINIT = "SDS_NOINIT";
+const char *SDS_NOINIT = "SDS_NOINIT";  // 不对sds进行初始化的关键字
 
+// sds存储不同长度的字符串，结构sds结构体所占用的内存大小也不一样
+// 获取存储不同长度字符串，sds结构体所占用的内存大小
 static inline int sdsHdrSize(char type) {
     switch(type&SDS_TYPE_MASK) {
         case SDS_TYPE_5:
@@ -57,6 +59,7 @@ static inline int sdsHdrSize(char type) {
     return 0;
 }
 
+// 根据目标字符串的长度string_size，确定用来存储该字符串的sds结构体类型
 static inline char sdsReqType(size_t string_size) {
     if (string_size < 1<<5)
         return SDS_TYPE_5;
@@ -89,20 +92,21 @@ static inline char sdsReqType(size_t string_size) {
 sds sdsnewlen(const void *init, size_t initlen) {
     void *sh;
     sds s;
-    char type = sdsReqType(initlen);
+    char type = sdsReqType(initlen);    // 根据目标字符串的长度initlen，得到该sds结构的类型
     /* Empty strings are usually created in order to append. Use type 8
      * since type 5 is not good at this. */
     if (type == SDS_TYPE_5 && initlen == 0) type = SDS_TYPE_8;
     int hdrlen = sdsHdrSize(type);
     unsigned char *fp; /* flags pointer. */
 
+    // 申请的内存是，sds结构体，也就是header的大小（hdrlen）+ initlen + 1
     sh = s_malloc(hdrlen+initlen+1);
     if (init==SDS_NOINIT)
         init = NULL;
     else if (!init)
         memset(sh, 0, hdrlen+initlen+1);
-    if (sh == NULL) return NULL;
-    s = (char*)sh+hdrlen;
+    if (sh == NULL) return NULL;    // 此处应该放在104行之前，在 deps/hiredis/sds.c 中fix了
+    s = (char*)sh+hdrlen;   // sh是指向sds的头的，这里加上hdrlen的偏移，就获取真正存储字符串的地址
     fp = ((unsigned char*)s)-1;
     switch(type) {
         case SDS_TYPE_5: {
@@ -110,7 +114,7 @@ sds sdsnewlen(const void *init, size_t initlen) {
             break;
         }
         case SDS_TYPE_8: {
-            SDS_HDR_VAR(8,s);
+            SDS_HDR_VAR(8,s);   // 这里重新定义了一个局部变量sh，并将其指向sds的t部。没get到这样做的好处。。
             sh->len = initlen;
             sh->alloc = initlen;
             *fp = type;
@@ -146,25 +150,29 @@ sds sdsnewlen(const void *init, size_t initlen) {
 
 /* Create an empty (zero length) sds string. Even in this case the string
  * always has an implicit null term. */
+// 创建一个空sds
 sds sdsempty(void) {
     return sdsnewlen("",0);
 }
 
 /* Create a new sds string starting from a null terminated C string. */
+// 用c字符串去创建sds
 sds sdsnew(const char *init) {
     size_t initlen = (init == NULL) ? 0 : strlen(init);
     return sdsnewlen(init, initlen);
 }
 
 /* Duplicate an sds string. */
+// 复制一个sds
 sds sdsdup(const sds s) {
     return sdsnewlen(s, sdslen(s));
 }
 
 /* Free an sds string. No operation is performed if 's' is NULL. */
+// 释放sds占用的空间
 void sdsfree(sds s) {
     if (s == NULL) return;
-    s_free((char*)s-sdsHdrSize(s[-1]));
+    s_free((char*)s-sdsHdrSize(s[-1])); // 指针要指向sds结构体的头部
 }
 
 /* Set the sds string length to the length as obtained with strlen(), so
@@ -181,6 +189,7 @@ void sdsfree(sds s) {
  * The output will be "2", but if we comment out the call to sdsupdatelen()
  * the output will be "6" as the string was modified but the logical length
  * remains 6 bytes. */
+// 用strlen()获取并更新sds的长度
 void sdsupdatelen(sds s) {
     size_t reallen = strlen(s);
     sdssetlen(s, reallen);
@@ -190,6 +199,7 @@ void sdsupdatelen(sds s) {
  * However all the existing buffer is not discarded but set as free space
  * so that next append operations will not require allocations up to the
  * number of bytes previously available. */
+// 将sds的存储的字符串长度置为0
 void sdsclear(sds s) {
     sdssetlen(s, 0);
     s[0] = '\0';

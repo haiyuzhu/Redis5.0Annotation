@@ -42,6 +42,8 @@ const char *SDS_NOINIT;
 
 typedef char *sds;
 
+// 理解__attribute__ ((__packed__))作用的例子，
+// 这里__attribute__ ((__packed__))就是不让编译器对数据结构进行字节对齐
 /* Note: sdshdr5 is never used, we just access the flags byte directly.
  * However is here to document the layout of type 5 SDS strings. */
 struct __attribute__ ((__packed__)) sdshdr5 {
@@ -67,23 +69,25 @@ struct __attribute__ ((__packed__)) sdshdr32 {
     char buf[];
 };
 struct __attribute__ ((__packed__)) sdshdr64 {
-    uint64_t len; /* used */
-    uint64_t alloc; /* excluding the header and null terminator */
+    uint64_t len; /* used */    // 当前字符串的长度
+    uint64_t alloc; /* excluding the header and null terminator */  // 分配的内存字节数 or 可存储的最大字符串长度
     unsigned char flags; /* 3 lsb of type, 5 unused bits */
-    char buf[];
+    char buf[]; // 预留空间
 };
 
+// 这里的type其实是根据sds所能存储的字符串长度来划分的。划分成5个等级
 #define SDS_TYPE_5  0
 #define SDS_TYPE_8  1
 #define SDS_TYPE_16 2
 #define SDS_TYPE_32 3
 #define SDS_TYPE_64 4
-#define SDS_TYPE_MASK 7
+#define SDS_TYPE_MASK 7 // flags 是8bits, 只有后三位用来标记是哪种类型
 #define SDS_TYPE_BITS 3
 #define SDS_HDR_VAR(T,s) struct sdshdr##T *sh = (void*)((s)-(sizeof(struct sdshdr##T)));
 #define SDS_HDR(T,s) ((struct sdshdr##T *)((s)-(sizeof(struct sdshdr##T))))
 #define SDS_TYPE_5_LEN(f) ((f)>>SDS_TYPE_BITS)
 
+// TODO:
 static inline size_t sdslen(const sds s) {
     unsigned char flags = s[-1];
     switch(flags&SDS_TYPE_MASK) {
@@ -101,6 +105,7 @@ static inline size_t sdslen(const sds s) {
     return 0;
 }
 
+// 获取sds还可以存放的字节数
 static inline size_t sdsavail(const sds s) {
     unsigned char flags = s[-1];
     switch(flags&SDS_TYPE_MASK) {
@@ -127,6 +132,7 @@ static inline size_t sdsavail(const sds s) {
     return 0;
 }
 
+// 重置sds字符串的长度，但是并不进行内存分配
 static inline void sdssetlen(sds s, size_t newlen) {
     unsigned char flags = s[-1];
     switch(flags&SDS_TYPE_MASK) {
@@ -151,6 +157,7 @@ static inline void sdssetlen(sds s, size_t newlen) {
     }
 }
 
+// 给sds已使用长度增加inc
 static inline void sdsinclen(sds s, size_t inc) {
     unsigned char flags = s[-1];
     switch(flags&SDS_TYPE_MASK) {
@@ -177,6 +184,7 @@ static inline void sdsinclen(sds s, size_t inc) {
 }
 
 /* sdsalloc() = sdsavail() + sdslen() */
+// 获取sds已经分配的内存大小
 static inline size_t sdsalloc(const sds s) {
     unsigned char flags = s[-1];
     switch(flags&SDS_TYPE_MASK) {
@@ -194,6 +202,7 @@ static inline size_t sdsalloc(const sds s) {
     return 0;
 }
 
+// 重置sds已分配的内存大小，但不进行内存调整
 static inline void sdssetalloc(sds s, size_t newlen) {
     unsigned char flags = s[-1];
     switch(flags&SDS_TYPE_MASK) {
