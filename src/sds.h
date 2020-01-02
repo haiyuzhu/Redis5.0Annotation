@@ -72,7 +72,7 @@ struct __attribute__ ((__packed__)) sdshdr64 {
     uint64_t len; /* used */    // 当前字符串的长度
     uint64_t alloc; /* excluding the header and null terminator */  // 分配的内存字节数 or 可存储的最大字符串长度
     unsigned char flags; /* 3 lsb of type, 5 unused bits */
-    char buf[]; // 预留空间
+    char buf[]; // 是存储的字符串的首地址，buf本身不占用结构体的空间。这个地方非常有意思。
 };
 
 // 这里的type其实是根据sds所能存储的字符串长度来划分的。划分成5个等级
