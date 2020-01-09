@@ -44,6 +44,7 @@
 /* Unused arguments generate annoying warnings... */
 #define DICT_NOTUSED(V) ((void) V)  //避免编译器对未使用的变量有warning
 
+// 哈希结点
 typedef struct dictEntry {
     void *key;  // 当前记录的的Key
     union {
@@ -71,7 +72,7 @@ typedef struct dictType {
 typedef struct dictht {
     dictEntry **table;  // 二维数组，行数为size
     unsigned long size;
-    unsigned long sizemask; // TODO
+    unsigned long sizemask; // 始终为size-1, hash时需要用到
     unsigned long used;
 } dictht;
 

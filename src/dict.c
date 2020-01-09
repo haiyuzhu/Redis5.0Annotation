@@ -152,14 +152,16 @@ int dictExpand(dict *d, unsigned long size)
         return DICT_ERR;
 
     dictht n; /* the new hash table */
-    unsigned long realsize = _dictNextPower(size);  // 获取realsize，满足2^realsize >= size
+    // 获取扩张的新哈希表的大小，realsize是2的次方中第一个满足realsize >= size
+    unsigned long realsize = _dictNextPower(size);
 
     /* Rehashing to the same table size is not useful. */
-    if (realsize == d->ht[0].size) return DICT_ERR; // size刚好是2^n，这个地方有问题？
+    // 扩展的大小跟现有的表大小一样的话是没有意义的，因为此时载荷因子才1，没必要进行扩张。
+    if (realsize == d->ht[0].size) return DICT_ERR;
 
     /* Allocate the new hash table and initialize all pointers to NULL */
     n.size = realsize;
-    n.sizemask = realsize-1;    // TODO
+    n.sizemask = realsize-1;    // sizemask始终是size - 1
     n.table = zcalloc(realsize*sizeof(dictEntry*));
     n.used = 0;
 
@@ -171,8 +173,8 @@ int dictExpand(dict *d, unsigned long size)
     }
 
     /* Prepare a second hash table for incremental rehashing */
-    d->ht[1] = n;
-    d->rehashidx = 0;
+    d->ht[1] = n;   // 将扩张的新哈希表放在1里面
+    d->rehashidx = 0;   // 将rehash置位，需要进行rehash
     return DICT_OK;
 }
 
@@ -185,6 +187,10 @@ int dictExpand(dict *d, unsigned long size)
  * guaranteed that this function will rehash even a single bucket, since it
  * will visit at max N*10 empty buckets in total, otherwise the amount of
  * work it does would be unbound and the function may block for a long time. */
+/*
+进行N步增量rehash。如果还有key需要从老的哈希表迁移到新的哈希表就返回1，否则，返回0。
+rehash在于将一个桶从老的哈希表迁移到新的哈希表，桶内可能是多个key。
+*/
 int dictRehash(dict *d, int n) {
     int empty_visits = n*10; /* Max number of empty buckets to visit. */
     if (!dictIsRehashing(d)) return 0;
@@ -289,6 +295,7 @@ int dictAdd(dict *d, void *key, void *val)
  *
  * If key was added, the hash entry is returned to be manipulated by the caller.
  */
+// 获取存储这个key的entry
 dictEntry *dictAddRaw(dict *d, void *key, dictEntry **existing)
 {
     long index;
@@ -306,9 +313,11 @@ dictEntry *dictAddRaw(dict *d, void *key, dictEntry **existing)
      * Insert the element in top, with the assumption that in a database
      * system it is more likely that recently added entries are accessed
      * more frequently. */
+    // 如果正在rehash，那就把新的key-value存在已经扩展的哈希表上，也就是哈希表1。
+    // 因为哈希表0，载荷因子已经不合理，再写入没意义。
     ht = dictIsRehashing(d) ? &d->ht[1] : &d->ht[0];
     entry = zmalloc(sizeof(*entry));
-    entry->next = ht->table[index];
+    entry->next = ht->table[index]; // 新值添加在链表的头部
     ht->table[index] = entry;
     ht->used++;
 
@@ -931,6 +940,8 @@ static int _dictExpandIfNeeded(dict *d)
      * table (global setting) or we should avoid it but the ratio between
      * elements/buckets is over the "safe" threshold, we resize doubling
      * the number of buckets. */
+    // 当载荷因子超过5；或者，载荷因子>=1,且使能dict_can_resize。则会进行扩张
+    // 扩张的大小是找一个最小的2^n，且满足2^n >= 2 * used.
     if (d->ht[0].used >= d->ht[0].size &&
         (dict_can_resize ||
          d->ht[0].used/d->ht[0].size > dict_force_resize_ratio))
@@ -961,6 +972,7 @@ static unsigned long _dictNextPower(unsigned long size)
  *
  * Note that if we are in the process of rehashing the hash table, the
  * index is always returned in the context of the second (new) hash table. */
+// 获取可以放置当前key的空槽位的索引，如果哈希表中已经有这个key，则将key对应的值写到existing里面并返回-1.
 static long _dictKeyIndex(dict *d, const void *key, uint64_t hash, dictEntry **existing)
 {
     unsigned long idx, table;
@@ -970,14 +982,16 @@ static long _dictKeyIndex(dict *d, const void *key, uint64_t hash, dictEntry **e
     /* Expand the hash table if needed */
     if (_dictExpandIfNeeded(d) == DICT_ERR)
         return -1;
+    // TODO: 为什么是遍历两个哈希表，而不是只遍历哈希表0？
     for (table = 0; table <= 1; table++) {
-        idx = hash & d->ht[table].sizemask;
+        idx = hash & d->ht[table].sizemask; // TODO
         /* Search if this slot does not already contain the given key */
         he = d->ht[table].table[idx];
+        // 由于是用的链表处理冲突，在找到key对应的slot之后，还要遍历该slot的链表
         while(he) {
             if (key==he->key || dictCompareKeys(d, key, he->key)) {
                 if (existing) *existing = he;
-                return -1;
+                return -1;  // 如果哈希表中已经存在这个key了，则把这个key对应的值写到existing里面
             }
             he = he->next;
         }
