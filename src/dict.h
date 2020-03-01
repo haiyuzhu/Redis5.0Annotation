@@ -73,7 +73,7 @@ typedef struct dictht {
     dictEntry **table;  // 二维数组，行数为size
     unsigned long size;
     unsigned long sizemask; // 始终为size-1, hash时需要用到
-    unsigned long used;
+    unsigned long used; // 实际使用的bucket数量
 } dictht;
 
 //
